@@ -21,10 +21,12 @@ Clicking any node opens a side panel to edit the question text and option labels
 ### Preview Mode
 A Play button switches from the editor flowchart to a chat-style interface that simulates the real bot experience. The conversation traverses the decision tree node by node as the user selects answers, and shows a Restart button when a terminal node is reached.
 
-### Drag-to-Reposition (Wildcard Feature)
-Nodes can be freely dragged around the canvas. The SVG connector lines recalculate and redraw live as nodes move.
+### Flow Validation *(Wildcard Feature)*
+As teams edit flows, mistakes creep in — an option that leads to a node that doesn't exist, or a node that no path from the start ever reaches. These errors are invisible until a real customer hits a broken path and the bot fails.
 
-**Why this feature adds business value:** Flow diagrams grow complex quickly. When a manager adds a new branch or restructures a conversation, they need to untangle overlapping nodes without touching JSON coordinates. Drag-to-reposition makes the tool self-sufficient — the canvas becomes the source of truth for layout, not a config file. It also demonstrates the full `mousedown → mousemove → mouseup` DOM event lifecycle, `getBoundingClientRect()` coordinate transforms, and document-level listener management with guaranteed cleanup.
+The validator runs a BFS graph traversal from the start node on every edit. Any node outside the reachable set is flagged **"Customers can't reach this"** with an orange dashed border. Any node with an option pointing to a non-existent destination is flagged **"An answer goes nowhere"** with a red border. A floating badge shows **"Ready to go live"** when the flow is clean, or **"N things need your attention"** when issues exist.
+
+**Why this adds business value:** It catches configuration errors before they reach production. A broken support bot costs customer trust and generates extra tickets. Validation makes the editor self-auditing — managers get instant feedback on every change without needing a developer to review the JSON.
 
 ---
 
@@ -33,10 +35,11 @@ Nodes can be freely dragged around the canvas. The SVG connector lines recalcula
 | Layer | Choice |
 |---|---|
 | Framework | React 19 (Vite) |
+| Language | TypeScript |
 | Styling | Tailwind CSS (CDN) |
 | Graph rendering | Custom SVG — no react-flow, jsPlumb, or mermaid |
 | UI components | Custom only — no MUI, Bootstrap, or Chakra |
-| State | React `useState` / `useCallback` (in-memory) |
+| State | React `useState` / `useCallback` / `useMemo` (in-memory) |
 | Data | `flow_data.json` (local) |
 
 ---
@@ -45,15 +48,16 @@ Nodes can be freely dragged around the canvas. The SVG connector lines recalcula
 
 ```
 src/
-├── App.jsx                  # Root: data loading, mode toggle, state
-├── hooks/
-│   └── useDrag.js           # Mouse event lifecycle for node dragging
+├── App.tsx                  # Root: data loading, mode toggle, state, validation badge
+├── types.ts                 # Shared TypeScript interfaces (FlowNode, ValidationResult)
+├── utils/
+│   └── validateFlow.ts      # BFS graph traversal — detects unreachable and broken nodes
 └── components/
-    ├── Canvas.jsx            # Scrollable canvas container + coordinate context
-    ├── NodeCard.jsx          # Absolutely-positioned node card
-    ├── Connectors.jsx        # SVG overlay: bezier curves + edge labels
-    ├── EditPanel.jsx         # Side panel: controlled inputs for node editing
-    └── Preview.jsx           # Chat-style bot runner
+    ├── Canvas.tsx            # Scrollable canvas container + coordinate context
+    ├── NodeCard.tsx          # Absolutely-positioned node card with issue indicators
+    ├── Connectors.tsx        # SVG overlay: bezier curves + edge labels
+    ├── EditPanel.tsx         # Side panel: controlled inputs for node editing
+    └── Preview.tsx           # Chat-style bot runner
 ```
 
 ---
@@ -73,15 +77,15 @@ Open [http://localhost:5173](http://localhost:5173).
 
 | Concept | Location |
 |---|---|
-| Absolute positioning with dynamic coordinates | `NodeCard.jsx` |
-| SVG path drawing and cubic bezier math | `Connectors.jsx` |
-| `mouse` event lifecycle on `document` | `useDrag.js` |
-| `getBoundingClientRect()` coordinate transforms | `useDrag.js` |
-| Document-level listener add/remove with exact references | `useDrag.js` |
-| Controlled form inputs with immediate re-render | `EditPanel.jsx` |
-| `useEffect` for focus and keyboard event management | `EditPanel.jsx` |
-| `scrollIntoView` scroll management | `Preview.jsx` |
-| State machine: editor ↔ preview mode toggle | `App.jsx` |
+| Absolute positioning with dynamic coordinates | `NodeCard.tsx` |
+| SVG path drawing and cubic bezier math | `Connectors.tsx` |
+| `pointer-events: none` SVG passthrough | `Connectors.tsx` |
+| Controlled form inputs with immediate re-render | `EditPanel.tsx` |
+| `useEffect` for focus and keyboard event management | `EditPanel.tsx` |
+| `scrollIntoView` scroll management | `Preview.tsx` |
+| BFS graph traversal on a directed graph | `utils/validateFlow.ts` |
+| `useMemo` for reactive derived state | `App.tsx` |
+| State machine: editor ↔ preview mode toggle | `App.tsx` |
 
 ---
 
